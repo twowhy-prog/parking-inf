@@ -102,6 +102,7 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
 
 /* 구분선 */
 .divider{border:none;border-top:1px solid var(--border);margin:18px 0}
+.fsep{width:1px;height:18px;background:var(--border);display:inline-block;margin:0 8px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -124,25 +125,28 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
 <div class="page on" id="page-trend">
   <div class="mrow" id="m-trend"></div>
   <div class="frow">
-    <span class="flabel">기간</span>
+    <span class="flabel">보기</span>
+    <button class="ab" data-v="월별" onclick="setView(this,'월별')">월별</button>
+    <button data-v="분기별" onclick="setView(this,'분기별')">분기별</button>
+    <button data-v="연도별" onclick="setView(this,'연도별')">연도별</button>
+    <span class="fsep"></span>
+    <span class="flabel">연도</span>
     <button class="ab" data-r="all" onclick="setR(this,'all')">전체</button>
     <button data-r="2024" onclick="setR(this,'2024')">2024</button>
     <button data-r="2025" onclick="setR(this,'2025')">2025</button>
     <button data-r="2026" onclick="setR(this,'2026')">2026</button>
+    <span class="fsep"></span>
+    <span class="flabel">직접 선택</span>
+    <select id="fromM" onchange="setCustomRange()"></select>
+    <span style="color:var(--muted);font-size:13px;padding:0 2px">~</span>
+    <select id="toM" onchange="setCustomRange()"></select>
   </div>
   <div class="card mt" style="margin-bottom:14px">
-    <div class="ct">월별 총 입출차 건수</div>
-    <div class="cw" style="height:200px"><canvas id="cTotal"></canvas></div>
+    <div class="ct">입출차 건수 추이</div>
+    <div class="cw" style="height:260px"><canvas id="cTotal"></canvas></div>
   </div>
-  <div class="g31">
-    <div class="card">
-      <div class="ct">월별 주차 수익 <span class="badge g">결제 발생 건</span></div>
-      <div class="cw" style="height:200px"><canvas id="cRev"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="ct">최근 12개월 수익 순위</div>
-      <div id="revRank"></div>
-    </div>
+  <div class="insight" style="margin-top:0">
+    <strong>수익 데이터 안내:</strong> 실결제 수익은 현장 결제 + 모두의주차 + 정기권(구글시트) 3가지로 구성되어 별도 집계됩니다. 이 대시보드는 <strong>입출차 현황 및 할인권 사용 현황</strong> 데이터만 표시합니다.
   </div>
 </div>
 
@@ -156,6 +160,7 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
       <span><span class="dot" style="background:var(--green)"></span>3시간권</span>
       <span><span class="dot" style="background:var(--orange)"></span>야간권</span>
       <span><span class="dot" style="background:var(--yellow)"></span>심야권</span>
+      <span id="mergeNote" style="margin-left:6px;font-size:11px;color:var(--orange)"></span>
     </div>
     <div class="cw" style="height:240px"><canvas id="cPass"></canvas></div>
   </div>
@@ -252,7 +257,7 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
 
 <script>
 /* ══ 상태 ═══════════════════════════════════════ */
-let D = null, RNG = 'all';
+let D = null, RNG = 'all', VIEW = '월별', FROM_M = null, TO_M = null;
 const CH = {};
 
 /* ══ 색 팔레트 ══════════════════════════════════ */
@@ -268,9 +273,9 @@ const fmt  = n => (n||0).toLocaleString('ko-KR');
 const fmtW = n => (Math.round((n||0)/10000)) + '만';
 const fmtM = n => Math.round(n||0) + '분';
 
-function mkChart(id, type, data, opts) {
+function mkChart(id, type, data, opts, plugins=[]) {
   if (CH[id]) CH[id].destroy();
-  CH[id] = new Chart(document.getElementById(id).getContext('2d'), {type, data, options: opts});
+  CH[id] = new Chart(document.getElementById(id).getContext('2d'), {type, data, options: opts, plugins});
   return CH[id];
 }
 function baseOpts(extra={}) {
@@ -301,54 +306,111 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 /* ══ 기간 필터 ══════════════════════════════════ */
 function setR(btn, r) {
   document.querySelectorAll('[data-r]').forEach(b => b.classList.remove('ab'));
-  btn.classList.add('ab'); RNG = r; renderTrend();
+  btn.classList.add('ab'); RNG = r; FROM_M = null; TO_M = null;
+  document.getElementById('fromM').value = '';
+  document.getElementById('toM').value = '';
+  renderTrend();
+}
+function setView(btn, v) {
+  document.querySelectorAll('[data-v]').forEach(b => b.classList.remove('ab'));
+  btn.classList.add('ab'); VIEW = v; renderTrend();
+}
+function setCustomRange() {
+  FROM_M = document.getElementById('fromM').value || null;
+  TO_M   = document.getElementById('toM').value   || null;
+  if (FROM_M || TO_M) {
+    document.querySelectorAll('[data-r]').forEach(b => b.classList.remove('ab'));
+    RNG = 'custom';
+  }
+  renderTrend();
+}
+function initMonthSelects() {
+  if (!D) return;
+  const months = D.monthly.filter(r => !r.month.startsWith('2026-04')).map(r => r.month);
+  ['fromM','toM'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '<option value="">--</option>' + months.map(m => `<option value="${m}">${m}</option>`).join('');
+  });
+}
+function getBaseMonths() {
+  if (!D) return [];
+  return D.monthly.filter(r => !r.month.startsWith('2026-04'));
+}
+function mergeInto(acc, r) {
+  acc.total           += r.total;
+  acc.paid_count      += r.paid_count;
+  ['당일권','3시간권','야간권','심야권'].forEach(k => acc.passes[k] = (acc.passes[k]||0) + (r.passes[k]||0));
+  Object.entries(r.discount_types||{}).forEach(([k,v]) => acc.discount_types[k] = (acc.discount_types[k]||0)+v);
+  Object.entries(r.vehicle_types||{}).forEach(([k,v])  => acc.vehicle_types[k]  = (acc.vehicle_types[k]||0)+v);
+}
+function aggregateByView(rows) {
+  if (VIEW === '월별') return rows;
+  const map = new Map();
+  rows.forEach(r => {
+    const [y, m] = r.month.split('-');
+    const key = VIEW === '연도별' ? y : `${y}-Q${Math.ceil(parseInt(m)/3)}`;
+    if (!map.has(key)) map.set(key, {month:key, total:0, paid_count:0, passes:{당일권:0,'3시간권':0,야간권:0,심야권:0}, discount_types:{}, vehicle_types:{}});
+    mergeInto(map.get(key), r);
+  });
+  return [...map.values()];
 }
 function filtMonthly() {
   if (!D) return [];
-  const m = D.monthly.filter(r => !r.month.startsWith('2026-04'));
-  return RNG === 'all' ? m : m.filter(r => r.month.startsWith(RNG));
+  let rows = getBaseMonths();
+  if (FROM_M || TO_M) {
+    if (FROM_M) rows = rows.filter(r => r.month >= FROM_M);
+    if (TO_M)   rows = rows.filter(r => r.month <= TO_M);
+  } else if (RNG !== 'all' && RNG !== 'custom') {
+    rows = rows.filter(r => r.month.startsWith(RNG));
+  }
+  return aggregateByView(rows);
 }
 
 /* ══ 탭1: 월별 이용 추이 ════════════════════════ */
 function renderTrend() {
   const rows = filtMonthly(); if (!rows.length) return;
-  const labels = rows.map(r => r.month.slice(2));
+  const labels = rows.map(r => r.month);
   const totals = rows.map(r => r.total);
-  const revs   = rows.map(r => r.revenue);
+  const paid   = rows.map(r => r.paid_count);
 
-  const tSum = totals.reduce((a,b)=>a+b,0);
-  const rSum = revs.reduce((a,b)=>a+b,0);
-  const avg  = Math.round(tSum/rows.length);
-  const maxR = Math.max(...revs);
-  const maxRM = rows[revs.indexOf(maxR)].month;
+  const tSum    = totals.reduce((a,b)=>a+b,0);
+  const avg     = Math.round(tSum/rows.length);
+  const maxT    = Math.max(...totals);
+  const maxTM   = rows[totals.indexOf(maxT)].month;
+  const paidSum = paid.reduce((a,b)=>a+b,0);
 
   document.getElementById('m-trend').innerHTML =
     metricCard('기간 총 입출차', fmt(tSum)+'건', `${rows[0].month} ~ ${rows[rows.length-1].month}`,'','') +
-    metricCard('월 평균 입출차', fmt(avg)+'건', '완성 월 기준','','') +
-    metricCard('총 주차 수익', fmtW(rSum)+'원', rows.length+'개월 합산','','') +
-    metricCard('최고 수익 월', fmtW(maxR)+'원', maxRM,'','');
+    metricCard('기간 평균', fmt(avg)+'건', VIEW+' 기준','','') +
+    metricCard('유료 결제 건수', fmt(paidSum)+'건', `비율 ${(paidSum/tSum*100).toFixed(1)}%`,'','') +
+    metricCard('최다 이용', fmt(maxT)+'건', maxTM,'','');
 
   const xOpts = {ticks:{color:P.text,font:{size:10},maxRotation:45,autoSkip:rows.length>20},grid:{color:P.grid}};
   mkChart('cTotal','bar',{labels,datasets:[{
-    data:totals,borderRadius:3,
+    data:totals, borderRadius:3,
     backgroundColor:rows.map(r=>r.month.startsWith('2026')?'rgba(79,201,164,.7)':r.month.startsWith('2025')?'rgba(79,142,247,.7)':'rgba(167,139,250,.5)')
   }]}, baseOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}건`}}},scales:{x:xOpts,y:{ticks:{color:P.text,font:{size:11}},grid:{color:P.grid}}}}));
-
-  mkChart('cRev','line',{labels,datasets:[{
-    data:revs,borderColor:P.green,backgroundColor:'rgba(79,201,164,.09)',fill:true,tension:.35,
-    pointRadius:rows.length>20?2:4,pointBackgroundColor:P.green
-  }]}, baseOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtW(c.raw)}원`}}},scales:{x:xOpts,y:{ticks:{color:P.text,font:{size:11},callback:v=>fmtW(v)},grid:{color:P.grid}}}}));
-
-  const r12 = rows.slice(-12).sort((a,b)=>b.revenue-a.revenue);
-  const mr  = r12[0].revenue;
-  document.getElementById('revRank').innerHTML = r12.map((r,i)=>
-    barRow(r.month.slice(2), fmtW(r.revenue), fmtW(mr), i===0?P.yellow:P.blue)).join('');
 }
 
 /* ══ 탭2: 패스권 현황 ═══════════════════════════ */
+function findMergeMonth() {
+  const rows = D.monthly;
+  let hadNight = false;
+  for (const r of rows) {
+    if ((r.passes['야간권']||0) > 0) hadNight = true;
+    if (hadNight && (r.passes['야간권']||0) === 0) return r.month;
+  }
+  return null;
+}
 function renderPass() {
   const rows     = D.monthly.filter(r=>!r.month.startsWith('2026-04'));
   const passRows = rows.filter(r=>{const p=r.passes;return p['당일권']+p['3시간권']+p['야간권']+p['심야권']>0;});
+  const mergeMonth = findMergeMonth();
+  const mergeLabel = mergeMonth ? mergeMonth.slice(2) : null;
+  if (mergeMonth) {
+    document.getElementById('mergeNote').textContent = `┆ ${mergeMonth}부터 야간권→심야권 통합`;
+  }
 
   const s = k => passRows.reduce((a,r)=>a+r.passes[k],0);
   const [d,h3,n,sn] = ['당일권','3시간권','야간권','심야권'].map(s);
@@ -362,12 +424,33 @@ function renderPass() {
 
   const labels = passRows.map(r=>r.month.slice(2));
   const xOpts = {stacked:true,ticks:{color:P.text,font:{size:10},autoSkip:false,maxRotation:45},grid:{color:P.grid}};
+  const mergeAnnotPlugin = {
+    id:'mergeAnnot',
+    afterDraw(chart) {
+      if (!mergeLabel) return;
+      const idx = chart.data.labels.indexOf(mergeLabel);
+      if (idx < 0) return;
+      const ctx = chart.ctx;
+      const x = chart.scales.x.getPixelForValue(idx);
+      const {top, bottom} = chart.chartArea;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(247,131,79,.85)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f7834f';
+      ctx.font = '10px Apple SD Gothic Neo, sans-serif';
+      ctx.fillText('야간→심야 통합', x+4, top+14);
+      ctx.restore();
+    }
+  };
   mkChart('cPass','bar',{labels,datasets:[
     {label:'당일권', data:passRows.map(r=>r.passes['당일권']), backgroundColor:P.blue,   borderRadius:3},
     {label:'3시간권',data:passRows.map(r=>r.passes['3시간권']),backgroundColor:P.green,  borderRadius:3},
     {label:'야간권', data:passRows.map(r=>r.passes['야간권']), backgroundColor:P.orange, borderRadius:3},
     {label:'심야권', data:passRows.map(r=>r.passes['심야권']), backgroundColor:P.yellow, borderRadius:3},
-  ]}, baseOpts({plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:xOpts,y:{stacked:true,ticks:{color:P.text,font:{size:11}},grid:{color:P.grid}}}}));
+  ]}, baseOpts({plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:xOpts,y:{stacked:true,ticks:{color:P.text,font:{size:11}},grid:{color:P.grid}}}}), [mergeAnnotPlugin]);
 
   mkChart('cPassPie','doughnut',{
     labels:['당일권','3시간권','야간권','심야권'],
@@ -424,7 +507,7 @@ function renderDisc() {
   document.getElementById('m-disc').innerHTML =
     metricCard('모주 패스권 총 이용', fmt(totalMooju)+'건', '당일권·3h·야간·심야 합산','','') +
     metricCard('제휴 할인 총 이용', fmt(totalAff)+'건', '시간단위·3h·5h·전액 합산','','') +
-    metricCard('전체 할인 절감액', fmtW(totalDiscAmt)+'원', '모주 패스권 + 제휴 합산','dn','▼ 수익 기회비용') +
+    metricCard('모주 도입', '2025-08', '이전 월 모주 0건','','') +
     metricCard('제휴 건당 평균 할인', fmtM(avgAffMin), `총 ${Math.round((aff.total_discount_min||0)/60)}시간 절감`,'','');
 
   // 모주 패스권 막대 (건수 + 평균 체류)
@@ -452,7 +535,7 @@ function renderDisc() {
   document.getElementById('moojuStay').innerHTML =
     `<div style="margin-top:8px">` +
     passTypes.map((t,i)=>barRow(t, Math.round(bt[t]?.avg_stay_min||0)+'분', Math.round(maxStay)+'분', passColors[i])).join('') +
-    `</div><p style="font-size:11px;color:var(--muted);margin-top:10px">할인 절감액: ${passTypes.map((t,i)=>`<span style="color:${passColors[i]}">${t} ${fmtW(bt[t]?.discount_amount||0)}원</span>`).join(' / ')}</p>`;
+    `</div><p style="font-size:11px;color:var(--muted);margin-top:10px">실결제 금액은 모두의주차 앱 정산 데이터 기준 별도 집계</p>`;
 
   // 제휴 할인 월별 추이
   const affM = (aff.monthly||[]).filter(r=>!r.month?.startsWith('2026-04'));
@@ -523,12 +606,12 @@ function renderDisc() {
     {label:'제휴 할인 전체',cnt:aff.total_count||0,     amt:aff.total_discount_amount||0,      avg:Math.round(aff.avg_discount_min||0)+'분', color:'o'},
   ];
 
-  const th='<thead><tr><th>유형</th><th style="text-align:right">건수</th><th style="text-align:right">할인 절감액</th><th style="text-align:right">평균 체류</th></tr></thead>';
-  const tb='<tbody>'+realDetail.map(r=>`<tr><td>${r.label}</td><td class="r">${fmt(r.cnt)}</td><td class="r ${r.color}">${fmtW(r.amt)}원</td><td class="r">${r.avg}</td></tr>`).join('')+'</tbody>';
+  const th='<thead><tr><th>유형</th><th style="text-align:right">건수</th><th style="text-align:right">평균 체류</th></tr></thead>';
+  const tb='<tbody>'+realDetail.map(r=>`<tr><td>${r.label}</td><td class="r hi">${fmt(r.cnt)}</td><td class="r">${r.avg}</td></tr>`).join('')+'</tbody>';
   document.getElementById('discTbl').innerHTML = th+tb;
 
   document.getElementById('discInsight').innerHTML =
-    `<strong>제휴 할인 부담:</strong> 제휴 할인 총 절감액 <strong>${fmtW(aff.total_discount_amount||0)}원</strong> / 건당 평균 <strong>${Math.round(aff.avg_discount_min||0)}분</strong> 할인. 5시간 제휴가 건당 절감액이 가장 큰 유형으로, 협력사 재협상 시 우선 검토 대상입니다.`;
+    `<strong>안내:</strong> 할인권 실결제 금액은 모두의주차(모주) 앱 정산 및 현장 요금제 기준으로 별도 집계됩니다. 이 탭은 <strong>이용 건수 및 체류 패턴</strong> 데이터만 표시합니다.`;
 }
 
 /* ══ 탭5: 차종별 현황 ═══════════════════════════ */
@@ -564,6 +647,7 @@ async function load() {
   if (!D) { document.body.innerHTML='<p style="padding:40px;color:#f77">data/parking_data.json 을 먼저 생성해주세요.</p>'; return; }
   const m = D.meta;
   document.getElementById('upd').textContent = `기간: ${m.period.start} ~ ${m.period.end} | 총 ${fmt(m.total_records)}건 | 생성: ${m.generated||''}`;
+  initMonthSelects();
   renderTrend();
   renderPass();
   renderDaily();
