@@ -1,0 +1,43 @@
+name: 주차 데이터 자동 변환
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/raw/*.xlsx'
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - run: pip install pandas openpyxl
+
+      - name: 가장 최근 xlsx 변환
+        run: |
+          XLSX=$(ls -t data/raw/*.xlsx | head -1)
+          echo "변환 대상: $XLSX"
+          python scripts/convert.py "$XLSX" data/parking_data.json
+
+      - name: 변경사항 커밋
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          LAST_MONTH=$(python3 -c "
+          import json
+          with open('data/parking_data.json') as f:
+              d = json.load(f)
+          print(d['meta']['period']['end'])
+          ")
+          git add dashboard.html data/parking_data.json
+          git diff --staged --quiet || git commit -m "data: $LAST_MONTH (auto)"
+          git push
