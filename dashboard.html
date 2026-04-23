@@ -677,7 +677,7 @@ function renderRevenue() {
   const labels = rows.map(r=>r.month.slice(2));
   const xOpts  = {stacked:true,ticks:{color:P.text,font:{size:10},maxRotation:45,autoSkip:rows.length>20},grid:{color:P.grid}};
   mkChart('cRevTotal','bar',{labels,datasets:[
-    {label:'현장 매출', data:rows.map(r=>(r.subtotal||r.total)-(r.mooju||0)), backgroundColor:'rgba(79,142,247,.75)', borderRadius:3},
+    {label:'현장 매출', data:rows.map(r=>r.subtotal||r.total), backgroundColor:'rgba(79,142,247,.75)', borderRadius:3},
     {label:'모두의주차', data:rows.map(r=>r.mooju||0), backgroundColor:'rgba(79,201,164,.75)', borderRadius:3},
   ]}, baseOpts({
     plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>` ${c.dataset.label}: ${fmtW(c.raw)}원`}}},
@@ -701,7 +701,7 @@ function renderRevenue() {
   const th='<thead><tr><th>월</th><th style="text-align:right">현장</th><th style="text-align:right">모주</th><th style="text-align:right">합계</th></tr></thead>';
   const tb='<tbody>'+rows.slice().reverse().map(r=>`<tr>
     <td>${r.month}</td>
-    <td class="r">${fmtW((r.subtotal||r.total)-(r.mooju||0))}원</td>
+    <td class="r">${fmtW(r.subtotal||r.total)}원</td>
     <td class="r ${r.mooju?'g':''}">${r.mooju?fmtW(r.mooju)+'원':'-'}</td>
     <td class="r hi">${fmtW(r.total)}원</td>
   </tr>`).join('')+'</tbody>';
