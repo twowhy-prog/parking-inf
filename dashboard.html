@@ -117,6 +117,7 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
   <div class="tab" data-p="daily">당일권 분석</div>
   <div class="tab" data-p="disc">할인권 분석</div>
   <div class="tab" data-p="vehicle">차종별 현황</div>
+  <div class="tab" data-p="rev">수익 현황</div>
 </div>
 
 <main>
@@ -146,7 +147,7 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
     <div class="cw" style="height:260px"><canvas id="cTotal"></canvas></div>
   </div>
   <div class="insight" style="margin-top:0">
-    <strong>수익 데이터 안내:</strong> 실결제 수익은 현장 결제 + 모두의주차 + 정기권(구글시트) 3가지로 구성되어 별도 집계됩니다. 이 대시보드는 <strong>입출차 현황 및 할인권 사용 현황</strong> 데이터만 표시합니다.
+    <strong>안내:</strong> 이 탭은 입출차 건수 현황입니다. 실결제 수익(현장+모주+정기권)은 <strong>수익 현황</strong> 탭에서 확인하세요.
   </div>
 </div>
 
@@ -253,11 +254,44 @@ button.ab{background:rgba(79,142,247,.13);border-color:var(--blue);color:var(--b
   </div>
 </div>
 
+<!-- ══ 탭6: 수익 현황 ══════════════════════════ -->
+<div class="page" id="page-rev">
+  <div class="mrow" id="m-rev"></div>
+  <div class="frow">
+    <span class="flabel">연도</span>
+    <button class="ab" data-rv="all" onclick="setRevR(this,'all')">전체</button>
+    <button data-rv="2023" onclick="setRevR(this,'2023')">2023</button>
+    <button data-rv="2024" onclick="setRevR(this,'2024')">2024</button>
+    <button data-rv="2025" onclick="setRevR(this,'2025')">2025</button>
+    <button data-rv="2026" onclick="setRevR(this,'2026')">2026</button>
+  </div>
+  <div class="card mt" style="margin-bottom:14px">
+    <div class="ct">월별 매출 추이 <span class="badge">현장 + 모주</span></div>
+    <div class="leg">
+      <span><span class="dot" style="background:rgba(79,142,247,.8)"></span>현장 매출</span>
+      <span><span class="dot" style="background:rgba(79,201,164,.8)"></span>모두의주차</span>
+    </div>
+    <div class="cw" style="height:240px"><canvas id="cRevTotal"></canvas></div>
+  </div>
+  <div class="g31">
+    <div class="card">
+      <div class="ct">월별 매출 상세</div>
+      <div style="overflow-x:auto;max-height:320px">
+        <table class="dt" id="revTbl"></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">카테고리별 매출 비중 <span class="badge o">누적</span></div>
+      <div class="cw" style="height:280px"><canvas id="cRevPie"></canvas></div>
+    </div>
+  </div>
+</div>
+
 </main>
 
 <script>
 /* ══ 상태 ═══════════════════════════════════════ */
-let D = null, RNG = 'all', VIEW = '월별', FROM_M = null, TO_M = null;
+let D = null, R = null, RNG = 'all', VIEW = '월별', FROM_M = null, TO_M = null, RNG_REV = 'all';
 const CH = {};
 
 /* ══ 색 팔레트 ══════════════════════════════════ */
@@ -614,6 +648,66 @@ function renderDisc() {
     `<strong>안내:</strong> 할인권 실결제 금액은 모두의주차(모주) 앱 정산 및 현장 요금제 기준으로 별도 집계됩니다. 이 탭은 <strong>이용 건수 및 체류 패턴</strong> 데이터만 표시합니다.`;
 }
 
+/* ══ 탭6: 수익 현황 ════════════════════════════ */
+function setRevR(btn, r) {
+  document.querySelectorAll('[data-rv]').forEach(b => b.classList.remove('ab'));
+  btn.classList.add('ab'); RNG_REV = r; renderRevenue();
+}
+function filtRevenue() {
+  if (!R) return [];
+  return RNG_REV === 'all' ? R.monthly : R.monthly.filter(r => r.month.startsWith(RNG_REV));
+}
+function renderRevenue() {
+  if (!R || !R.monthly) { document.getElementById('m-rev').innerHTML='<div class="mc"><div class="mc-label">안내</div><div class="mc-val" style="font-size:14px">data/revenue_data.json 없음</div><div class="mc-sub">scripts/convert_revenue.py 실행 후 재시도</div></div>'; return; }
+  const rows = filtRevenue();
+  if (!rows.length) return;
+
+  const totalRev  = rows.reduce((a,r)=>a+r.total,0);
+  const avgRev    = Math.round(totalRev/rows.length);
+  const maxRow    = rows.reduce((a,b)=>b.total>a.total?b:a);
+  const moojuSum  = rows.reduce((a,r)=>a+(r.mooju||0),0);
+  const moojuPct  = totalRev ? (moojuSum/totalRev*100).toFixed(1) : '0.0';
+
+  document.getElementById('m-rev').innerHTML =
+    metricCard('총 매출', fmtW(totalRev)+'원', `${rows[0].month} ~ ${rows[rows.length-1].month}`,'','') +
+    metricCard('월 평균 매출', fmtW(avgRev)+'원', rows.length+'개월 기준','','') +
+    metricCard('최고 매출 월', fmtW(maxRow.total)+'원', maxRow.month,'','') +
+    metricCard('모주 매출 비중', moojuPct+'%', `${fmtW(moojuSum)}원`,'','');
+
+  const labels = rows.map(r=>r.month.slice(2));
+  const xOpts  = {stacked:true,ticks:{color:P.text,font:{size:10},maxRotation:45,autoSkip:rows.length>20},grid:{color:P.grid}};
+  mkChart('cRevTotal','bar',{labels,datasets:[
+    {label:'현장 매출', data:rows.map(r=>(r.subtotal||r.total)-(r.mooju||0)), backgroundColor:'rgba(79,142,247,.75)', borderRadius:3},
+    {label:'모두의주차', data:rows.map(r=>r.mooju||0), backgroundColor:'rgba(79,201,164,.75)', borderRadius:3},
+  ]}, baseOpts({
+    plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,callbacks:{label:c=>` ${c.dataset.label}: ${fmtW(c.raw)}원`}}},
+    scales:{x:xOpts,y:{stacked:true,ticks:{color:P.text,font:{size:11},callback:v=>fmtW(v)},grid:{color:P.grid}}}
+  }));
+
+  // 카테고리 누적 (모든 필터 기간)
+  const catTotals = {};
+  rows.forEach(r => Object.entries(r.categories||{}).forEach(([k,v])=>{ catTotals[k]=(catTotals[k]||0)+v; }));
+  if (moojuSum > 0) catTotals['모두의주차'] = moojuSum;
+  const catE = Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const catTotal = catE.reduce((a,[,v])=>a+v,0);
+  mkChart('cRevPie','doughnut',{
+    labels:catE.map(([k])=>k),
+    datasets:[{data:catE.map(([,v])=>v),backgroundColor:PIE_COLORS,borderWidth:0,hoverOffset:6}]
+  },{responsive:true,maintainAspectRatio:false,cutout:'52%',plugins:{
+    legend:{display:true,position:'right',labels:{color:P.text,font:{size:11},padding:8,boxWidth:10,boxHeight:10}},
+    tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtW(c.raw)}원 (${(c.raw/catTotal*100).toFixed(1)}%)`}}
+  }});
+
+  const th='<thead><tr><th>월</th><th style="text-align:right">현장</th><th style="text-align:right">모주</th><th style="text-align:right">합계</th></tr></thead>';
+  const tb='<tbody>'+rows.slice().reverse().map(r=>`<tr>
+    <td>${r.month}</td>
+    <td class="r">${fmtW((r.subtotal||r.total)-(r.mooju||0))}원</td>
+    <td class="r ${r.mooju?'g':''}">${r.mooju?fmtW(r.mooju)+'원':'-'}</td>
+    <td class="r hi">${fmtW(r.total)}원</td>
+  </tr>`).join('')+'</tbody>';
+  document.getElementById('revTbl').innerHTML = th+tb;
+}
+
 /* ══ 탭5: 차종별 현황 ═══════════════════════════ */
 function renderVehicle() {
   const rows = D.monthly.filter(r=>!r.month.startsWith('2026-04'));
@@ -645,6 +739,14 @@ async function load() {
     D = INLINE_DATA;
   }
   if (!D) { document.body.innerHTML='<p style="padding:40px;color:#f77">data/parking_data.json 을 먼저 생성해주세요.</p>'; return; }
+
+  try {
+    const res2 = await fetch('data/revenue_data.json');
+    R = await res2.json();
+  } catch(e) {
+    console.warn('revenue_data.json 없음:', e);
+  }
+
   const m = D.meta;
   document.getElementById('upd').textContent = `기간: ${m.period.start} ~ ${m.period.end} | 총 ${fmt(m.total_records)}건 | 생성: ${m.generated||''}`;
   initMonthSelects();
@@ -653,6 +755,7 @@ async function load() {
   renderDaily();
   renderDisc();
   renderVehicle();
+  renderRevenue();
 }
 
 /*
