@@ -4,13 +4,15 @@
 CPBC 주차장 입출차 데이터 → JSON 변환 스크립트
 사용법: python scripts/convert.py <새엑셀파일> [기존JSON경로]
   - 기존 JSON이 있으면 중복 월을 자동으로 걸러내고 신규 월만 병합합니다.
-출력:  data/parking_data.json
+출력:  data/parking_data.json  +  dashboard.html (INLINE_DATA 자동 갱신)
 """
 
 import sys, json, re
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+
+REPO_ROOT = Path(__file__).parent.parent
 
 INTERNAL_TYPES = ['정기','입주','법인','직원','직무','사제','거래처','출연','평화']
 DISC_COLS  = ['모주_당일권','모주_3시간권','모주_야간권','모주_심야권',
@@ -112,9 +114,24 @@ def build_mooju(df):
         }
     }
 
+def update_html(json_data, html_path):
+    html_path = Path(html_path)
+    if not html_path.exists():
+        print(f"    ※ dashboard.html 없음 → 건너뜀: {html_path}")
+        return
+    text = html_path.read_text(encoding='utf-8')
+    json_str = json.dumps(json_data, ensure_ascii=False, separators=(',', ':'))
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        if line.strip().startswith('const INLINE_DATA'):
+            lines[i] = f'const INLINE_DATA = {json_str};'
+            break
+    html_path.write_text('\n'.join(lines), encoding='utf-8')
+    print(f"      → dashboard.html INLINE_DATA 갱신 완료")
+
 def convert(xlsx_path, existing_json=None, out_path=None):
     xlsx_path = Path(xlsx_path)
-    print(f"[1/5] 엑셀 읽는 중: {xlsx_path.name}")
+    print(f"[1/6] 엑셀 읽는 중: {xlsx_path.name}")
     df = pd.read_excel(xlsx_path)
     df['입차시간'] = pd.to_datetime(df['입차시간'])
     df['출차시간'] = pd.to_datetime(df['출차시간'])
@@ -123,7 +140,7 @@ def convert(xlsx_path, existing_json=None, out_path=None):
     old_data    = {}
 
     if existing_json and Path(existing_json).exists():
-        print(f"[2/5] 기존 JSON 로드 → 중복 월 제거: {existing_json}")
+        print(f"[2/6] 기존 JSON 로드 → 중복 월 제거: {existing_json}")
         with open(existing_json, encoding='utf-8') as f:
             old_data = json.load(f)
         old_records = old_data.get('monthly', [])
@@ -138,9 +155,9 @@ def convert(xlsx_path, existing_json=None, out_path=None):
             print("    → 추가할 신규 월 없음. 종료.")
             return
     else:
-        print("[2/5] 기존 JSON 없음 → 전체 신규 변환")
+        print("[2/6] 기존 JSON 없음 → 전체 신규 변환")
 
-    print("[3/5] 전처리 및 분류 중...")
+    print("[3/6] 전처리 및 분류 중...")
     df['체류분']   = (df['출차시간'] - df['입차시간']).dt.total_seconds() / 60
     df['연월']    = df['입차시간'].dt.to_period('M').astype(str)
     df['입차시']  = df['입차시간'].dt.hour
@@ -150,7 +167,7 @@ def convert(xlsx_path, existing_json=None, out_path=None):
     for p, lab in PASS_MAP:
         df[lab] = df['할인명'].str.contains(p, na=False)
 
-    print("[4/5] 월별 집계 중...")
+    print("[4/6] 월별 집계 중...")
     base = df.groupby('연월').agg(
         총건수=('차량종류','count'), 유료건수=('결제 요금', lambda x: (x>0).sum()),
         총수익=('결제 요금','sum'), 총할인액=('할인 요금','sum'),
@@ -164,7 +181,6 @@ def convert(xlsx_path, existing_json=None, out_path=None):
 
     all_records = sorted(old_records + new_records, key=lambda r: r['month'])
 
-    # 분석 섹션: 신규 데이터 있으면 갱신, 없으면 기존 유지
     daily_analysis = build_daily_analysis(df) or old_data.get('daily_ticket_analysis', {})
     aff_summary    = build_affiliate(df)       or old_data.get('affiliate_discount', {})
     mooju_summary  = build_mooju(df)           or old_data.get('mooju_passes', {})
@@ -183,15 +199,20 @@ def convert(xlsx_path, existing_json=None, out_path=None):
     }
 
     if out_path is None:
-        out_path = xlsx_path.parent.parent / 'data' / 'parking_data.json'
+        out_path = REPO_ROOT / 'data' / 'parking_data.json'
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    print("[5/6] JSON 저장 중...")
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     s, e = all_records[0]['month'], all_records[-1]['month']
-    print(f"[5/5] 완료 → {out_path}  ({out_path.stat().st_size:,} bytes)")
+    print(f"      → {out_path}  ({out_path.stat().st_size:,} bytes)")
     print(f"      기간: {s} ~ {e} | 총 {output['meta']['total_records']:,}건 ({len(all_records)}개월)")
+
+    print("[6/6] dashboard.html INLINE_DATA 갱신 중...")
+    update_html(output, REPO_ROOT / 'dashboard.html')
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
