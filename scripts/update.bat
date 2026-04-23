@@ -3,7 +3,7 @@ chcp 65001 > nul
 setlocal enabledelayedexpansion
 
 set REPO=%~dp0..
-set INBOX=%REPO%\주차입출입내역엑셀파일
+set INBOX=C:\Users\김상현\Desktop\주차입출입내역엑셀파일
 set RAW=%REPO%\data\raw
 
 :: ── 가장 최근 xlsx 찾기 ──────────────────────────────────────────
