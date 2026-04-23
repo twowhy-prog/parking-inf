@@ -20,13 +20,21 @@ echo 변환 대상: !XLSX!
 copy /y "%INBOX%\!XLSX!" "%RAW%\!XLSX!" > nul
 echo data\raw\ 에 복사 완료
 
-:: ── 변환 실행 ────────────────────────────────────────────────────
+:: ── 입출차 변환 ──────────────────────────────────────────────────
 cd /d "%REPO%"
 python scripts\convert.py "data\raw\!XLSX!" data\parking_data.json
 if errorlevel 1 (
-    echo 변환 실패
+    echo 입출차 변환 실패
     pause
     exit /b 1
+)
+
+:: ── 매출 변환 ────────────────────────────────────────────────────
+echo.
+echo [매출 데이터 변환 중...]
+python scripts\convert_revenue.py
+if errorlevel 1 (
+    echo 매출 변환 실패 ^(data\revenue\ 폴더에 xlsx 파일 확인^)
 )
 
 :: ── 커밋 메시지 자동 생성 ────────────────────────────────────────
@@ -36,7 +44,7 @@ echo.
 set /p MSG=커밋 메시지 [기본: data: %LAST_MONTH%]:
 if "!MSG!"=="" set MSG=data: %LAST_MONTH%
 
-git add dashboard.html data/parking_data.json "data/raw/!XLSX!"
+git add dashboard.html data/parking_data.json data/revenue_data.json "data/raw/!XLSX!"
 git commit -m "!MSG!"
 git push
 

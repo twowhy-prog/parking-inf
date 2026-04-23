@@ -114,9 +114,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         files = [Path(f) for f in sys.argv[1:]]
     else:
-        files = sorted(REPO.glob('*주차장 매출*.xlsx'))
-        if not files:
-            files = sorted(REPO.glob('data/revenue/*.xlsx'))
+        files = sorted((REPO / 'data' / 'revenue').glob('*.xlsx'))
 
     if not files:
         print('오류: 매출 xlsx 파일을 찾을 수 없습니다.')
