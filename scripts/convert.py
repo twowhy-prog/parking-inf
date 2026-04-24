@@ -166,10 +166,12 @@ def convert(xlsx_path, existing_json=None, out_path=None):
     df['할인분(분)'] = df['할인명'].apply(parse_discount_min)
     for p, lab in PASS_MAP:
         df[lab] = df['할인명'].str.contains(p, na=False)
+    # 모두의주차 패스권 이용자는 결제요금=0 이지만 실제 유료 고객으로 처리
+    df['_is_paid'] = (df['결제 요금'] > 0) | df['할인분류'].str.startswith('모주_', na=False)
 
     print("[4/6] 월별 집계 중...")
     base = df.groupby('연월').agg(
-        총건수=('차량종류','count'), 유료건수=('결제 요금', lambda x: (x>0).sum()),
+        총건수=('차량종류','count'), 유료건수=('_is_paid', 'sum'),
         총수익=('결제 요금','sum'), 총할인액=('할인 요금','sum'),
         당일권=('당일권','sum'), 삼시간권=('3시간권','sum'),
         야간권=('야간권','sum'), 심야권=('심야권','sum'),

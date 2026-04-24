@@ -1,7 +1,7 @@
 {
   "meta": {
     "source": "2024_2026_04입출차관리.xlsx",
-    "generated": "2026-04-23 01:52",
+    "generated": "2026-04-24 13:15",
     "period": {
       "start": "2024-01",
       "end": "2026-04"
@@ -714,7 +714,7 @@
     {
       "month": "2025-07",
       "total": 1841,
-      "paid_count": 387,
+      "paid_count": 389,
       "revenue": 8536000,
       "discount_amount": 5712000,
       "passes": {
@@ -753,7 +753,7 @@
     {
       "month": "2025-08",
       "total": 2152,
-      "paid_count": 418,
+      "paid_count": 731,
       "revenue": 8292000,
       "discount_amount": 11053000,
       "passes": {
@@ -792,7 +792,7 @@
     {
       "month": "2025-09",
       "total": 2426,
-      "paid_count": 459,
+      "paid_count": 884,
       "revenue": 9655000,
       "discount_amount": 16880000,
       "passes": {
@@ -831,7 +831,7 @@
     {
       "month": "2025-10",
       "total": 1848,
-      "paid_count": 366,
+      "paid_count": 742,
       "revenue": 6861000,
       "discount_amount": 12507000,
       "passes": {
@@ -870,7 +870,7 @@
     {
       "month": "2025-11",
       "total": 2104,
-      "paid_count": 421,
+      "paid_count": 899,
       "revenue": 7450000,
       "discount_amount": 15425000,
       "passes": {
@@ -909,7 +909,7 @@
     {
       "month": "2025-12",
       "total": 2431,
-      "paid_count": 541,
+      "paid_count": 1035,
       "revenue": 9458000,
       "discount_amount": 18055000,
       "passes": {
@@ -948,7 +948,7 @@
     {
       "month": "2026-01",
       "total": 2350,
-      "paid_count": 536,
+      "paid_count": 1035,
       "revenue": 9366000,
       "discount_amount": 18411000,
       "passes": {
@@ -987,7 +987,7 @@
     {
       "month": "2026-02",
       "total": 2081,
-      "paid_count": 399,
+      "paid_count": 901,
       "revenue": 7730000,
       "discount_amount": 18111000,
       "passes": {
@@ -1026,7 +1026,7 @@
     {
       "month": "2026-03",
       "total": 2227,
-      "paid_count": 466,
+      "paid_count": 1009,
       "revenue": 8577000,
       "discount_amount": 19782000,
       "passes": {
@@ -1065,7 +1065,7 @@
     {
       "month": "2026-04",
       "total": 108,
-      "paid_count": 17,
+      "paid_count": 42,
       "revenue": 8738330,
       "discount_amount": 676000,
       "passes": {
