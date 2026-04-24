@@ -9,11 +9,15 @@
 - GitHub Pages: 배포
 
 ## 파일 구조
-parking-dashboard/
-├── dashboard.html          ← 대시보드 본체 (JSON 인라인 내장)
-├── scripts/convert.py      ← 엑셀 → JSON + HTML 자동 갱신
-├── data/parking_data.json  ← 변환된 집계 데이터
-└── data/raw/               ← 원본 엑셀 보관
+parking-inf/
+├── dashboard.html              ← 대시보드 본체 (JSON 인라인 내장)
+├── scripts/convert.py          ← 엑셀 → JSON + HTML 자동 갱신
+├── data/parking_data.json      ← 변환된 집계 데이터
+├── data/raw/                   ← 입출차 원본 엑셀 보관
+└── data/revenue/               ← 수익 원본 엑셀 (연도별)
+    ├── 2024년 주차장 수익.xlsx  ← 월별 시트 → '합계' 행이 실제 수익
+    ├── 2025년 주차장 수익.xlsx
+    └── 2026년 주차장 수익.xlsx
 
 ## 대시보드 탭 구조 (4탭, 2025-04 재구성)
 | 탭 | data-p | 렌더 함수 | 주요 콘텐츠 |
@@ -29,6 +33,8 @@ parking-dashboard/
 
 ## 데이터 구조 (parking_data.json)
 - `monthly[]`: 월별 집계 (건수, 수익, 패스권, 할인분류, 차종별)
+  - ⚠️ `revenue` 필드는 **data/revenue/*.xlsx 각 월 시트의 합계** 기준
+  - 입출차 로그의 `결제 요금`만 쓰면 정기주차·계약 수입이 빠져 수치가 ~1/3로 잘못됨
 - `daily_ticket_analysis`: 당일권 체류 패턴 (2025-09 이후)
 - `affiliate_discount`: 제휴 할인 월별 현황
   - ⚠️ `affiliate_discount.monthly[]` 항목의 월 키는 **`연월`** (month 아님)
@@ -45,8 +51,15 @@ parking-dashboard/
 - `RNG`: 수익 분석 탭의 기간 범위 상태 (setR() 로 갱신)
 
 ## 새 엑셀 추가할 때
+
+### 입출차 데이터 추가 (할인·패스·이용패턴 탭)
 python scripts/convert.py data/raw/새파일.xlsx data/parking_data.json
-→ parking_data.json + dashboard.html 자동 갱신
+
+### 수익 데이터 업데이트 (수익 분석 탭)
+수익 엑셀 파일(data/revenue/YYYY년 주차장 수익.xlsx) 업데이트 후:
+python scripts/update_revenue.py
+→ 각 월 시트의 '합계' 행 값을 monthly[].revenue 에 반영
+
 → git add . && git commit -m "data: YYYY-MM" && git push
 
 ## 작업 요청 예시
